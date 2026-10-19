@@ -56,7 +56,10 @@
     currentPrizeId: null,
     winners: [], // 格式: [{ winnerId, name, department, prizeId, prizeName, timestamp }]
     isRolling: false,
-    rollIntervalId: null
+    rollIntervalId: null,
+    pendingWinner: null, // 格式: { winner, prize } (Issue #6)
+    searchQuery: '',     // 關鍵字檢索 (Issue #11)
+    filterPrizeId: ''    // 獎項篩選 (Issue #11)
   };
 
   // DOM 元素快取
@@ -107,7 +110,14 @@
       winnerCandidateMeta: domEl('.winner-candidate-meta'),
       stagePlaceholder: domEl('.stage-placeholder'),
       btnDraw: document.getElementById('btn-draw'),
+      pendingActions: document.getElementById('pending-actions'),
+      btnConfirmWinner: document.getElementById('btn-confirm-winner'),
+      btnDiscardWinner: document.getElementById('btn-discard-winner'),
       drawWarning: document.getElementById('draw-warning'),
+
+      winnerSearchInput: document.getElementById('winner-search-input'),
+      btnClearSearch: document.getElementById('btn-clear-search'),
+      winnerPrizeFilter: document.getElementById('winner-prize-filter'),
 
       winnersListContainer: document.getElementById('winners-list-container'),
       btnExportCsv: document.getElementById('btn-export-csv'),
@@ -133,6 +143,11 @@
     dom.btnFetchData.addEventListener('click', handleFetchApiData);
     dom.prizeSelect.addEventListener('change', handlePrizeChange);
     dom.btnDraw.addEventListener('click', handleStartDraw);
+    dom.btnConfirmWinner.addEventListener('click', handleConfirmWinner);
+    dom.btnDiscardWinner.addEventListener('click', handleDiscardWinner);
+    dom.winnerSearchInput.addEventListener('input', handleSearchInput);
+    dom.btnClearSearch.addEventListener('click', handleClearSearch);
+    dom.winnerPrizeFilter.addEventListener('change', handlePrizeFilterChange);
     dom.btnExportCsv.addEventListener('click', exportWinnersToCsv);
     dom.btnResetLottery.addEventListener('click', handleResetLottery);
   }
@@ -292,6 +307,7 @@
     renderPrizeOptions();
     updateStageAndStats();
     renderWinnersList();
+    renderPrizeFilterOptions();
   }
 
   /**
@@ -329,6 +345,8 @@
       dom.statRemainingQuota.textContent = '0';
       dom.prizeDesc.textContent = '';
       dom.btnDraw.disabled = true;
+      dom.pendingActions.classList.add('hidden');
+      dom.btnDraw.classList.remove('hidden');
       return;
     }
 
@@ -340,21 +358,35 @@
 
     const eligible = getEligibleParticipants();
 
-    // 判斷按鈕是否可點擊
-    if (state.isRolling) {
-      dom.btnDraw.disabled = true;
-      dom.btnDraw.textContent = '抽獎中...';
-    } else if (stats.remaining <= 0) {
-      dom.btnDraw.disabled = true;
-      dom.btnDraw.textContent = '該獎項已抽完';
-      dom.drawWarning.textContent = '🎉 此獎項配額已全數抽出完畢！';
-    } else if (eligible.length === 0) {
-      dom.btnDraw.disabled = true;
-      dom.btnDraw.textContent = '無可用候選名單';
-      dom.drawWarning.textContent = '⚠️ 所有人員皆已獲獎，名單已空。';
+    // 判斷是否處於開獎待確認狀態 (Issue #6)
+    if (state.pendingWinner) {
+      dom.btnDraw.classList.add('hidden');
+      dom.pendingActions.classList.remove('hidden');
+      dom.prizeSelect.disabled = true;
+      dom.btnToggleConfig.disabled = true;
+      dom.drawWarning.textContent = '⚠️ 候選人已抽出！請工作人員核對身分，確認後點擊「確認中獎」，或點擊「放棄」重新抽選。';
     } else {
-      dom.btnDraw.disabled = false;
-      dom.btnDraw.textContent = '開始抽獎';
+      dom.btnDraw.classList.remove('hidden');
+      dom.pendingActions.classList.add('hidden');
+      dom.prizeSelect.disabled = false;
+      dom.btnToggleConfig.disabled = false;
+
+      // 判斷按鈕是否可點擊
+      if (state.isRolling) {
+        dom.btnDraw.disabled = true;
+        dom.btnDraw.textContent = '抽獎中...';
+      } else if (stats.remaining <= 0) {
+        dom.btnDraw.disabled = true;
+        dom.btnDraw.textContent = '該獎項已抽完';
+        dom.drawWarning.textContent = '🎉 此獎項配額已全數抽出完畢！';
+      } else if (eligible.length === 0) {
+        dom.btnDraw.disabled = true;
+        dom.btnDraw.textContent = '無可用候選名單';
+        dom.drawWarning.textContent = '⚠️ 所有人員皆已獲獎，名單已空。';
+      } else {
+        dom.btnDraw.disabled = false;
+        dom.btnDraw.textContent = '開始抽獎';
+      }
     }
   }
 
@@ -421,15 +453,30 @@
 
     const winner = eligiblePool[finalIndex];
 
-    // 更新舞台定格視覺
-    dom.rollingDisplay.classList.remove('rolling');
-    dom.rollingDisplay.classList.add('winner-won');
-    dom.stagePlaceholder.textContent = '恭喜中獎！';
+    // 切入待確認狀態 (Issue #6) - 不直接扣配額、不直接寫入 state.winners
+    state.isRolling = false;
+    state.pendingWinner = {
+      winner: winner,
+      prize: prize
+    };
+
+    dom.rollingDisplay.classList.remove('rolling', 'winner-won');
+    dom.rollingDisplay.classList.add('pending-confirm');
+    dom.stagePlaceholder.textContent = '🎉 抽出候選人（請確認身分）';
     dom.winnerCandidateName.textContent = winner.name;
     const winnerMeta = [winner.department, winner.grade, winner.id ? '#' + winner.id : ''].filter(Boolean).join(' ');
     dom.winnerCandidateMeta.textContent = winnerMeta;
 
-    // 記錄中獎者
+    updateStageAndStats();
+  }
+
+  /**
+   * 確認候選人中獎並正式落庫 (Issue #6)
+   */
+  function handleConfirmWinner() {
+    if (!state.pendingWinner) return;
+
+    const { winner, prize } = state.pendingWinner;
     const winnerRecord = {
       winnerId: winner.id,
       name: winner.name,
@@ -443,11 +490,36 @@
 
     state.winners.push(winnerRecord);
     persistWinners();
+    state.pendingWinner = null;
 
-    state.isRolling = false;
+    dom.rollingDisplay.classList.remove('pending-confirm');
+    dom.rollingDisplay.classList.add('winner-won');
+    dom.stagePlaceholder.textContent = '🎊 正式中獎！';
+
     renderPrizeOptions();
     updateStageAndStats();
     renderWinnersList();
+    renderPrizeFilterOptions();
+
+    showToast(`🎉 已確認【${winner.name}】正式獲得【${prize.name}】！`, 'success');
+  }
+
+  /**
+   * 放棄本次抽選並重設舞台 (Issue #6)
+   */
+  function handleDiscardWinner() {
+    if (!state.pendingWinner) return;
+
+    const discardedName = state.pendingWinner.winner.name;
+    state.pendingWinner = null;
+
+    dom.rollingDisplay.classList.remove('pending-confirm', 'winner-won');
+    dom.stagePlaceholder.textContent = '準備抽獎';
+    dom.winnerCandidateName.textContent = '---';
+    dom.winnerCandidateMeta.textContent = '';
+
+    updateStageAndStats();
+    showToast(`已放棄【${discardedName}】之抽選結果，未扣減配額。`, 'info');
   }
 
   /**
@@ -471,9 +543,29 @@
       return;
     }
 
+    // 依關鍵字與獎項篩選 (Issue #11)
+    let filtered = state.winners;
+    if (state.filterPrizeId) {
+      filtered = filtered.filter(w => w.prizeId === state.filterPrizeId);
+    }
+    if (state.searchQuery) {
+      const q = state.searchQuery;
+      filtered = filtered.filter(w =>
+        (w.name && w.name.toLowerCase().includes(q)) ||
+        (w.department && w.department.toLowerCase().includes(q)) ||
+        (w.grade && w.grade.toLowerCase().includes(q)) ||
+        (w.winnerId && String(w.winnerId).toLowerCase().includes(q))
+      );
+    }
+
+    if (filtered.length === 0) {
+      dom.winnersListContainer.innerHTML = '<div class="empty-hint">🔍 查無符合條件的中獎紀錄</div>';
+      return;
+    }
+
     // 依獎品分組
     const grouped = {};
-    state.winners.forEach(w => {
+    filtered.forEach(w => {
       if (!grouped[w.prizeId]) {
         grouped[w.prizeId] = {
           prizeName: w.prizeName,
@@ -490,7 +582,7 @@
 
       const titleEl = document.createElement('div');
       titleEl.className = 'group-title';
-      titleEl.innerHTML = `<span>${group.prizeName}</span><span>(${group.items.length} 位)</span>`;
+      titleEl.innerHTML = `<span>${escapeHtml(group.prizeName)}</span><span>(${group.items.length} 位)</span>`;
       groupEl.appendChild(titleEl);
 
       const listEl = document.createElement('div');
@@ -502,17 +594,128 @@
         const metaParts = [item.department, item.grade, item.winnerId ? '#' + item.winnerId : ''].filter(Boolean).join(' · ');
         itemEl.innerHTML = `
           <div>
-            <div class="winner-item-name">${item.name}</div>
-            <div class="winner-item-meta">${metaParts}</div>
+            <div class="winner-item-name">${escapeHtml(item.name)}</div>
+            <div class="winner-item-meta">${escapeHtml(metaParts)}</div>
           </div>
-          <div class="winner-item-time">${item.timestamp}</div>
+          <div class="winner-item-right">
+            <span class="winner-item-time">${escapeHtml(item.timestamp)}</span>
+            <button class="btn-cancel-winner" title="作廢此筆中獎紀錄並退回獎品配額">作廢</button>
+          </div>
         `;
+
+        // 單筆中獎作廢 (兩段式確認防呆 - Issue #5)
+        const cancelBtn = itemEl.querySelector('.btn-cancel-winner');
+        let cancelTimer = null;
+        cancelBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!cancelBtn.classList.contains('confirming')) {
+            cancelBtn.classList.add('confirming');
+            cancelBtn.textContent = '確定作廢？';
+            cancelTimer = setTimeout(() => {
+              cancelBtn.classList.remove('confirming');
+              cancelBtn.textContent = '作廢';
+            }, 3500);
+            return;
+          }
+
+          if (cancelTimer) clearTimeout(cancelTimer);
+          handleCancelWinnerRecord(item);
+        });
+
         listEl.appendChild(itemEl);
       });
 
       groupEl.appendChild(listEl);
       dom.winnersListContainer.appendChild(groupEl);
     });
+  }
+
+  /**
+   * 作廢單筆中獎紀錄並恢復配額與抽獎資格 (Issue #5)
+   */
+  function handleCancelWinnerRecord(record) {
+    const idx = state.winners.findIndex(w =>
+      w.winnerId === record.winnerId &&
+      w.prizeId === record.prizeId &&
+      w.timestamp === record.timestamp
+    );
+
+    if (idx === -1) return;
+
+    // 自中獎清單移除
+    state.winners.splice(idx, 1);
+    persistWinners();
+
+    // 重新計算並同步 UI (配額自動回補、資格池自動解鎖)
+    renderPrizeOptions();
+    updateStageAndStats();
+    renderWinnersList();
+    renderPrizeFilterOptions();
+
+    showToast(`已作廢【${record.name}】之中獎紀錄，【${record.prizeName}】配額已恢復！`, 'success');
+  }
+
+  /**
+   * 渲染獎項篩選下拉選單 (Issue #11)
+   */
+  function renderPrizeFilterOptions() {
+    if (!dom.winnerPrizeFilter) return;
+    const currentSelected = state.filterPrizeId || '';
+    dom.winnerPrizeFilter.innerHTML = '<option value="">全部獎項</option>';
+    state.prizes.forEach(prize => {
+      const opt = document.createElement('option');
+      opt.value = prize.id;
+      opt.textContent = prize.name;
+      if (prize.id === currentSelected) {
+        opt.selected = true;
+      }
+      dom.winnerPrizeFilter.appendChild(opt);
+    });
+  }
+
+  /**
+   * 搜尋輸入監聽處理 (Issue #11)
+   */
+  function handleSearchInput(e) {
+    state.searchQuery = e.target.value.trim().toLowerCase();
+    if (dom.btnClearSearch) {
+      dom.btnClearSearch.classList.toggle('hidden', !state.searchQuery);
+    }
+    renderWinnersList();
+  }
+
+  /**
+   * 清除搜尋輸入 (Issue #11)
+   */
+  function handleClearSearch() {
+    if (dom.winnerSearchInput) {
+      dom.winnerSearchInput.value = '';
+    }
+    state.searchQuery = '';
+    if (dom.btnClearSearch) {
+      dom.btnClearSearch.classList.add('hidden');
+    }
+    renderWinnersList();
+  }
+
+  /**
+   * 獎項篩選切換處理 (Issue #11)
+   */
+  function handlePrizeFilterChange(e) {
+    state.filterPrizeId = e.target.value;
+    renderWinnersList();
+  }
+
+  /**
+   * HTML 字元轉義防 XSS
+   */
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   /**
@@ -594,14 +797,16 @@
     } catch (e) {}
 
     // 重設舞台狀態
+    state.pendingWinner = null;
     dom.winnerCandidateName.textContent = '---';
     dom.winnerCandidateMeta.textContent = '';
     dom.stagePlaceholder.textContent = '準備抽獎';
-    dom.rollingDisplay.classList.remove('winner-won', 'rolling');
+    dom.rollingDisplay.classList.remove('winner-won', 'rolling', 'pending-confirm');
 
     renderPrizeOptions();
     updateStageAndStats();
     renderWinnersList();
+    renderPrizeFilterOptions();
 
     if (hadWinners) {
       showToast('🎉 已成功清除中獎紀錄並恢復獎項配額！', 'success');
@@ -627,7 +832,10 @@
     loadData,
     getPrizeQuotaStats,
     getEligibleParticipants,
-    exportWinnersToCsv
+    exportWinnersToCsv,
+    handleConfirmWinner,
+    handleDiscardWinner,
+    handleCancelWinnerRecord
   };
 
   // 網頁載入後啟動

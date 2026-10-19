@@ -75,6 +75,10 @@
 
           <div class="stage-controls">
             <button id="btn-draw" class="btn-draw" disabled>開始抽獎</button>
+            <div id="pending-actions" class="pending-actions hidden">
+              <button id="btn-confirm-winner" class="btn-confirm">✅ 確認中獎</button>
+              <button id="btn-discard-winner" class="btn-discard">❌ 放棄 / 重新抽選</button>
+            </div>
           </div>
           <div id="draw-warning" class="draw-warning"></div>
         </div>
@@ -89,6 +93,17 @@
               <button id="btn-export-csv" class="btn-sm btn-outline">匯出 CSV</button>
               <button id="btn-reset-lottery" class="btn-sm btn-danger">重置紀錄</button>
             </div>
+          </div>
+
+          <!-- 搜尋與獎項篩選列 (Issue #11) -->
+          <div class="winners-filter-bar">
+            <div class="search-box-wrapper">
+              <input type="text" id="winner-search-input" placeholder="🔍 搜尋姓名、系所或學號..." autocomplete="off">
+              <button id="btn-clear-search" class="btn-clear-search hidden" title="清除搜尋">✕</button>
+            </div>
+            <select id="winner-prize-filter" class="winner-prize-filter">
+              <option value="">全部獎項</option>
+            </select>
           </div>
 
           <!-- 中獎記錄分組列表 -->

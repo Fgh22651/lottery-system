@@ -305,6 +305,67 @@ button {
   animation: pulse-winner 1s infinite alternate ease-in-out;
 }
 
+/* 待確認候選人狀態 (Issue #6) */
+.rolling-display.pending-confirm {
+  border: 2px dashed #f59e0b;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, rgba(15, 23, 42, 0.9) 80%);
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+  animation: pulse-pending 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-pending {
+  from { transform: scale(1); }
+  to { transform: scale(1.02); }
+}
+
+.pending-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.pending-actions.hidden {
+  display: none !important;
+}
+
+.btn-confirm {
+  flex: 1.2;
+  padding: 14px 16px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+  transition: all 0.2s ease;
+}
+
+.btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.5);
+}
+
+.btn-discard {
+  flex: 1;
+  padding: 14px 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-discard:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fff;
+}
+
 @keyframes pulse-winner {
   from { transform: scale(1); }
   to { transform: scale(1.03); }
@@ -435,6 +496,63 @@ button {
   gap: 8px;
 }
 
+.winners-filter-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-box-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+#winner-search-input {
+  width: 100%;
+  padding: 8px 30px 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.6);
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+#winner-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-clear-search.hidden {
+  display: none !important;
+}
+
+.winner-prize-filter {
+  max-width: 140px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
 .winner-item {
   display: flex;
   justify-content: space-between;
@@ -442,6 +560,7 @@ button {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 10px 12px;
+  gap: 8px;
 }
 
 .winner-item-name {
@@ -454,9 +573,40 @@ button {
   color: var(--text-secondary);
 }
 
+.winner-item-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .winner-item-time {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-cancel-winner {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-cancel-winner:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-cancel-winner.confirming {
+  background: var(--danger) !important;
+  color: #fff !important;
+  font-weight: 700;
+  animation: pulse-danger 0.8s infinite alternate ease-in-out;
 }
 
 /* 兩段式確認按鈕特效 */
